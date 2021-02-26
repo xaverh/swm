@@ -5,7 +5,6 @@ LDFLAGS += -lxcb
 
 include config.mk
 
-.POSIX:
 all: ${BIN}
 
 .c.o: ${SRC}

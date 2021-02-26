@@ -1,4 +1,4 @@
-PREFIX	 = /usr
+PREFIX	 = /usr/local
 
 CC	?= cc
 LD	 = ${CC}
