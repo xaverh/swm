@@ -1,0 +1,16 @@
+Checks:
+  "*,-*-avoid-c-arrays,-*-use-trailing-return-type,-*-braces-around-statements,
+  -*-qualified-auto,-readability-implicit-bool-conversion,-*-named-parameter,
+  -cppcoreguidelines-avoid-non-const-global-variables,-llvmlibc-*,-*-pro-type-reinterpret-cast,
+  -*-pro-bounds-array-to-pointer-decay,-*-no-array-decay"
+CheckOptions:
+  - key: bugprone-argument-comment.StrictMode
+    value: 1
+  - key: bugprone-exception-escape.FunctionsThatShouldNotThrow
+    value: WinMain,SDL_main
+  - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: 1
+  - key: modernize-loop-convert.MinConfidence
+    value: risky
+  - key: modernize-use-auto.RemoveStars
+    value: 1
