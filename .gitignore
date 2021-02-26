@@ -2,3 +2,4 @@ swm
 swm.o
 .ninja_log
 .cache
+compile_commands.json

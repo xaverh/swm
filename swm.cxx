@@ -14,41 +14,31 @@
  *      OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  **/
 
-#define CLEANMASK(m) ((m & ~0x80))
+#include "config.hxx"
 
+#include <cstdlib>
 #include <err.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <xcb/xcb.h>
 
-enum { INACTIVE, ACTIVE };
-
+namespace {
 /* global variables */
-static xcb_connection_t* conn;
-static xcb_screen_t* scr;
-static xcb_window_t focuswin;
+xcb_connection_t* conn;
+xcb_screen_t* scr;
+xcb_window_t focuswin;
 
-/* proto */
-static void subscribe(xcb_window_t);
-static void cleanup(void);
-static int deploy(void);
-static void focus(xcb_window_t, int);
-
-#include "config.h"
-
-static void cleanup(void)
+void cleanup()
 {
 	/* graceful exit */
-	if (conn != NULL) xcb_disconnect(conn);
+	if (conn != nullptr) xcb_disconnect(conn);
 }
 
-static int deploy(void)
+int deploy()
 {
 	/* init xcb and grab events */
 	uint32_t values[2];
-	int mask;
 
-	if (xcb_connection_has_error(conn = xcb_connect(NULL, NULL))) return -1;
+	if (xcb_connection_has_error(conn = xcb_connect(nullptr, nullptr))) return -1;
 
 	scr = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
 	focuswin = scr->root;
@@ -75,7 +65,7 @@ static int deploy(void)
 	                3,
 	                MOD);
 
-	mask = XCB_CW_EVENT_MASK;
+	int mask = XCB_CW_EVENT_MASK;
 	values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY;
 	xcb_change_window_attributes_checked(conn, scr->root, mask, values);
 
@@ -84,34 +74,31 @@ static int deploy(void)
 	return 0;
 }
 
-static void focus(xcb_window_t win, int mode)
+void focus(xcb_window_t win, bool active)
 {
 	uint32_t values[1];
 #if OUTER > 0
-	short w, h, b, o;
-
 	if (!win) return;
 
 	xcb_get_geometry_reply_t* geom
-	    = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), NULL);
+	    = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), nullptr);
 
-	if (geom == NULL) return;
+	if (geom == nullptr) return;
 
-	w = (short)geom->width;
-	h = (short)geom->height;
-	b = (unsigned short)geom->border_width;
-	o = (unsigned short)OUTER;
+	short w = (short)geom->width;
+	short h = (short)geom->height;
+	short b = (unsigned short)geom->border_width;
 
-	xcb_rectangle_t inner[] = {{w, 0, b - o, h + b - o},
-	                           {w + b + o, 0, b - o, h + b - o},
-	                           {0, h, w + b - o, b - o},
-	                           {0, h + b + o, w + b - o, b - o},
-	                           {w + b + o, b + h + o, b, b}};
+	xcb_rectangle_t inner[] = {{w, 0, b - OUTER, h + b - OUTER},
+	                           {w + b + OUTER, 0, b - OUTER, h + b - OUTER},
+	                           {0, h, w + b - OUTER, b - OUTER},
+	                           {0, h + b + OUTER, w + b - OUTER, b - OUTER},
+	                           {w + b + OUTER, b + h + OUTER, b, b}};
 
-	xcb_rectangle_t outer[] = {{w + b - o, 0, o, h + b * 2},
-	                           {w + b, 0, o, h + b * 2},
-	                           {0, h + b - o, w + b * 2, o},
-	                           {0, h + b, w + b * 2, o},
+	xcb_rectangle_t outer[] = {{w + b - OUTER, 0, OUTER, h + b * 2},
+	                           {w + b, 0, OUTER, h + b * 2},
+	                           {0, h + b - OUTER, w + b * 2, OUTER},
+	                           {0, h + b, w + b * 2, OUTER},
 	                           {1, 1, 1, 1}};
 
 	xcb_pixmap_t pmap = xcb_generate_id(conn);
@@ -122,7 +109,7 @@ static void focus(xcb_window_t win, int mode)
 	                  geom->width + (geom->border_width * 2),
 	                  geom->height + (geom->border_width * 2));
 	xcb_gcontext_t gc = xcb_generate_id(conn);
-	xcb_create_gc(conn, gc, pmap, 0, NULL);
+	xcb_create_gc(conn, gc, pmap, 0, nullptr);
 
 	values[0] = OUTERCOL;
 	xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, values);
@@ -138,26 +125,23 @@ static void focus(xcb_window_t win, int mode)
 	xcb_free_pixmap(conn, pmap);
 	xcb_free_gc(conn, gc);
 #else
-	values[0] = mode ? FOCUSCOL : UNFOCUSCOL;
+	values[0] = active ? FOCUSCOL : UNFOCUSCOL;
 	xcb_change_window_attributes(conn, win, XCB_CW_BORDER_PIXEL, values);
 #endif
 
-	if (mode == ACTIVE) {
+	if (active) {
 		xcb_set_input_focus(conn, XCB_INPUT_FOCUS_POINTER_ROOT, win, XCB_CURRENT_TIME);
 		if (win != focuswin) {
-			focus(focuswin, INACTIVE);
+			focus(focuswin, false);
 			focuswin = win;
 		}
 	}
 }
 
-static void subscribe(xcb_window_t win)
+void subscribe(xcb_window_t win)
 {
-	uint32_t values[2];
-
 	/* subscribe to events */
-	values[0] = XCB_EVENT_MASK_ENTER_WINDOW;
-	values[1] = XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY;
+	uint32_t values[2] = {XCB_EVENT_MASK_ENTER_WINDOW, XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY};
 	xcb_change_window_attributes(conn, win, XCB_CW_EVENT_MASK, values);
 
 	/* border width */
@@ -165,63 +149,55 @@ static void subscribe(xcb_window_t win)
 	xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 }
 
-static void events_loop(void)
+void events_loop()
 {
-	xcb_generic_event_t* ev;
+	xcb_generic_event_t* ev = nullptr;
 	uint32_t values[3];
-	xcb_get_geometry_reply_t* geom;
+	xcb_get_geometry_reply_t* geom = nullptr;
 	xcb_window_t win = 0;
 
 	/* loop */
 	for (;;) {
 		ev = xcb_wait_for_event(conn);
 
-		if (!ev) errx(1, "xcb connection broken");
+		if (!ev) errx(EXIT_FAILURE, "xcb connection broken");
 
-		switch (CLEANMASK(ev->response_type)) {
+		switch (((ev->response_type & ~0x80))) {
 		case XCB_CREATE_NOTIFY: {
-			xcb_create_notify_event_t* e;
-			e = (xcb_create_notify_event_t*)ev;
-
+			auto e = reinterpret_cast<xcb_create_notify_event_t*>(ev);
 			if (!e->override_redirect) {
 				subscribe(e->window);
-				focus(e->window, ACTIVE);
+				focus(e->window, true);
 			}
 		} break;
 
 		case XCB_DESTROY_NOTIFY: {
-			xcb_destroy_notify_event_t* e;
-			e = (xcb_destroy_notify_event_t*)ev;
-
+			auto e = reinterpret_cast<xcb_destroy_notify_event_t*>(ev);
 			xcb_kill_client(conn, e->window);
 		} break;
 
 		case XCB_ENTER_NOTIFY: {
-			xcb_enter_notify_event_t* e;
-			e = (xcb_enter_notify_event_t*)ev;
-			focus(e->event, ACTIVE);
+			auto e = reinterpret_cast<xcb_enter_notify_event_t*>(ev);
+			focus(e->event, true);
 		} break;
 
 		case XCB_MAP_NOTIFY: {
-			xcb_map_notify_event_t* e;
-			e = (xcb_map_notify_event_t*)ev;
-
+			auto e = reinterpret_cast<xcb_map_notify_event_t*>(ev);
 			if (!e->override_redirect) {
 				xcb_map_window(conn, e->window);
-				focus(e->window, ACTIVE);
+				focus(e->window, true);
 			}
 		} break;
 
 		case XCB_BUTTON_PRESS: {
-			xcb_button_press_event_t* e;
-			e = (xcb_button_press_event_t*)ev;
+			auto e = reinterpret_cast<xcb_button_press_event_t*>(ev);
 			win = e->child;
 
 			if (!win || win == scr->root) break;
 
 			values[0] = XCB_STACK_MODE_ABOVE;
 			xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_STACK_MODE, values);
-			geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), NULL);
+			geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), nullptr);
 			if (e->detail == 1) {
 				values[2] = 1;
 				xcb_warp_pointer(conn,
@@ -229,13 +205,13 @@ static void events_loop(void)
 				                 win,
 				                 0,
 				                 0,
-				                 0,
-				                 0,
+				                 0U,
+				                 0U,
 				                 geom->width / 2,
 				                 geom->height / 2);
 			} else {
 				values[2] = 3;
-				xcb_warp_pointer(conn, XCB_NONE, win, 0, 0, 0, 0, geom->width, geom->height);
+				xcb_warp_pointer(conn, XCB_NONE, win, 0, 0, 0U, 0U, geom->width, geom->height);
 			}
 			xcb_grab_pointer(conn,
 			                 0,
@@ -251,10 +227,10 @@ static void events_loop(void)
 		} break;
 
 		case XCB_MOTION_NOTIFY: {
-			xcb_query_pointer_reply_t* pointer;
-			pointer = xcb_query_pointer_reply(conn, xcb_query_pointer(conn, scr->root), 0);
+			xcb_query_pointer_reply_t* pointer
+			    = xcb_query_pointer_reply(conn, xcb_query_pointer(conn, scr->root), nullptr);
 			if (values[2] == 1) {
-				geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), NULL);
+				geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), nullptr);
 				if (!geom) break;
 
 				values[0]
@@ -272,7 +248,7 @@ static void events_loop(void)
 				xcb_configure_window(conn, win, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
 				xcb_flush(conn);
 			} else if (values[2] == 3) {
-				geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), NULL);
+				geom = xcb_get_geometry_reply(conn, xcb_get_geometry(conn, win), nullptr);
 				values[0] = pointer->root_x - geom->x;
 				values[1] = pointer->root_y - geom->y;
 				xcb_configure_window(conn,
@@ -284,17 +260,16 @@ static void events_loop(void)
 		} break;
 
 		case XCB_BUTTON_RELEASE:
-			focus(win, ACTIVE);
+			focus(win, true);
 			xcb_ungrab_pointer(conn, XCB_CURRENT_TIME);
 			break;
 
 		case XCB_CONFIGURE_NOTIFY: {
-			xcb_configure_notify_event_t* e;
-			e = (xcb_configure_notify_event_t*)ev;
+			auto e = reinterpret_cast<xcb_configure_notify_event_t*>(ev);
 
-			if (e->window != focuswin) focus(e->window, INACTIVE);
+			if (e->window != focuswin) focus(e->window, true);
 
-			focus(focuswin, ACTIVE);
+			focus(focuswin, true);
 		} break;
 		}
 
@@ -302,8 +277,9 @@ static void events_loop(void)
 		free(ev);
 	}
 }
+} // namespace
 
-int main(void)
+int main()
 {
 	/* graceful exit */
 	atexit(cleanup);
@@ -314,5 +290,3 @@ int main(void)
 
 	return EXIT_FAILURE;
 }
-
-/* vim: set noet sw=8 sts=8: */
