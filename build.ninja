@@ -1,0 +1,15 @@
+build all: phony swm
+
+# rule for "swm"
+rule rule0
+ description = build $out
+ command = /bin/sh -c "g++ -v -o ${out} ${in} $$CXXFLAGS -Wl,--as-needed -Wl,-O1  -lxcb -L/opt/X11/lib -L/usr/X11R6/lib"
+build swm: rule0 swm.o
+
+# rule for "swm.o"
+rule rule1
+ description = build $out
+ command = /bin/sh -c "g++ -v -c swm.cxx -o ${out} $$CXXFLAGS -Wall -I/opt/X11/include -I/usr/X11R6/include"
+build swm.o: rule1 swm.cxx config.hxx
+
+default all
